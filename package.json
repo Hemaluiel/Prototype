@@ -1,0 +1,17 @@
+{
+  "name": "mbob-netlify",
+  "version": "1.0.0",
+  "description": "mBOB banking app - Netlify serverless deployment",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "mysql2": "^3.6.0",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

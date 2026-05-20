@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mBOB Feature Flow</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="phone">
+
+<div class="header">
+    <h3>mBOB: New Smart Features</h3>
+</div>
+
+<!-- HOME -->
+<div class="screen active" id="screen0">
+
+    <div style="display:flex; justify-content:space-between;">
+        <span>☰</span>
+        <span>🔔</span>
+    </div>
+
+    <p><b>Hi, Tashi!</b></p>
+
+    <div style="background:#1e88e5; color:white; padding:15px; border-radius:15px;">
+        <p>Account No: 123456789</p>
+        <p id="mainBalanceDisplay">Available Balance: Nu. …</p>
+    </div>
+
+    <!-- Existing Features -->
+    <div class="card">
+        <h3>Services</h3>
+        <div style="display:flex; justify-content:space-between;">
+            <div class="feature" onclick="goTo(1)">💸<br><small>Transfer</small></div>
+            <div class="feature" onclick="goTo(3)">📊<br><small>Mini Statement</small></div>
+            <div>🎮<br><small>Entertainment</small></div>
+            <div>📱<br><small>Top Up</small></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <div>📄<br><small>Statement</small></div>
+            <div>📷<br><small>Scan & Pay</small></div>
+            <div>💡<br><small>Bills</small></div>
+            <div>➕<br><small>Others</small></div>
+        </div>
+    </div>
+
+    <!-- POCKETS -->
+    <div class="card">
+        <h3>💼 Pockets</h3>
+        <p id="pocketSummary"><span style="color:#888;">Loading pockets…</span></p>
+        <div style="display:flex; justify-content:space-around;">
+            <div class="feature" onclick="goTo(2)">
+                ➕<br><small>Create Pocket</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="card">
+        <h3>💸 Expense Pattern</h3>
+
+        <!-- Month Selector -->
+        <div style="margin-bottom:10px;">
+            <label style="font-size:13px; color:#555;"><b>View Month:</b></label>
+            <select id="monthSelector" style="width:100%; margin-top:4px; padding:6px; border-radius:8px; border:1px solid #ccc; font-size:13px;"></select>
+        </div>
+
+        <!-- Total Display -->
+        <h4 id="totalExpense" style="text-align:center; margin-bottom:10px;"></h4>
+
+        <canvas id="expenseChart" width="300" height="300"></canvas>
+    </div>
+
+</div>
+
+<!-- SCREEN 2 (Transfer / Payment) -->
+<div class="screen" id="screen1">
+    <div class="card">
+        <h3>Make Payment</h3>
+
+        <label><b>Debit From (Main / Pocket):</b></label>
+        <select id="accountSelect"></select>
+
+        <input id="amountInput" type="number" placeholder="Amount">
+        <input id="receiverInput" type="number" placeholder="Receiver Account Number">
+        <input id="descInput" placeholder="Description (helps auto-detect category)">
+
+        <!-- CATEGORY DROPDOWN -->
+        <label style="font-size:13px; color:#555; margin-top:6px; display:block;"><b>Category:</b></label>
+        <div class="cat-dropdown-wrapper">
+            <div class="cat-selected" id="catSelected" onclick="toggleCatDropdown()">
+                <span id="catSelectedText">Select a category</span>
+                <span class="cat-arrow" id="catArrow">▾</span>
+            </div>
+            <div class="cat-options" id="catOptions"></div>
+        </div>
+
+        <button class="btn primary" style="width:100%; margin-top:14px;" onclick="makeTransfer()">Send</button>
+    </div>
+</div>
+
+
+<!-- SCREEN 3 (Create Pocket) -->
+<div class="screen" id="screen2">
+    <div class="card">
+        <h3>Create Pocket</h3>
+
+        <input id="pName" placeholder="Pocket Name">
+        <input id="pAmount" type="number" placeholder="Amount">
+
+        <label>Start Date:</label>
+        <input id="pStart" type="date">
+
+        <label>Duration:</label>
+        <input id="pDuration" type="number" placeholder="Enter number">
+
+        <select id="pType">
+            <option value="days">Days</option>
+            <option value="months">Months</option>
+            <option value="years">Years</option>
+        </select>
+
+        <button class="btn primary" style="width:100%; margin-top:10px;" onclick="createPocket()">Create</button>
+    </div>
+</div>
+
+
+<!-- SCREEN 4 (Mini Statement) -->
+<div class="screen" id="screen3">
+    <div class="card">
+        <h3>📊 Mini Statement</h3>
+
+        <div style="display:flex; justify-content:space-around; margin-bottom:10px;">
+            <button class="filterBtn active" onclick="showTransactions('last50', this)">Last 50</button>
+            <button class="filterBtn" onclick="showTransactions('today', this)">Today</button>
+            <button class="filterBtn" onclick="showTransactions('custom', this)">Specific Date</button>
+        </div>
+
+        <div id="transactionList">
+            <p style="color:#888; text-align:center;">Loading…</p>
+        </div>
+    </div>
+</div>
+
+<!-- SCREEN 5 (Edit Pocket) -->
+<div class="screen" id="screen4">
+    <div class="card">
+        <h3>Edit Pocket</h3>
+
+        <input id="editName" placeholder="Pocket Name">
+        <input id="editAmount" type="number" placeholder="Amount">
+
+        <label>Start Date:</label>
+        <input id="editStart" type="date">
+
+        <label>Duration:</label>
+        <input id="editDuration" type="number">
+
+        <select id="editType">
+            <option value="days">Days</option>
+            <option value="months">Months</option>
+            <option value="years">Years</option>
+        </select>
+
+        <button class="btn primary" style="width:100%; margin-top:10px;" onclick="saveEdit()">Save</button>
+    </div>
+</div>
+
+<!-- Footer -->
+<div class="footer" id="footerNav">
+    <button class="btn secondary" onclick="prevScreen()">Back</button>
+    <button class="btn primary" onclick="nextScreen()">Proceed</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="script.js"></script>
+
+</div>
+</body>
+</html>
