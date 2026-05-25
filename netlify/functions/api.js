@@ -1,22 +1,10 @@
-const express = require("express");
-const mysql = require("mysql2");
-const cors = require("cors");
-const serverless = require("serverless-http");
-
-const app = express();
-const router = express.Router();
-
-app.use(cors({ origin: "*" }));
-app.use(express.json());
-
-// DATABASE 
+const mysql = require("mysql2/promise");
 
 let db;
 
-function getDB() {
+async function getDB() {
     if (db) return db;
-
-    db = mysql.createConnection({
+    db = await mysql.createConnection({
         host: process.env.MYSQLHOST,
         user: process.env.MYSQLUSER,
         password: process.env.MYSQLPASSWORD,
@@ -24,203 +12,155 @@ function getDB() {
         port: parseInt(process.env.MYSQLPORT),
         ssl: { rejectUnauthorized: false }
     });
-
-    db.connect(err => {
-        if (err) {
-            console.error("DB connect error:", err);
-            db = null;
-        } else {
-            console.log("Connected to MySQL");
-            db.query(`
-                CREATE TABLE IF NOT EXISTS pockets (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(100),
-                    amount DECIMAL(15,2),
-                    start DATE,
-                    duration INT,
-                    type ENUM('days','months','years')
-                )
-            `, err => {
-                if (err) console.error("Table create error:", err);
-            });
-        }
-    });
-
     return db;
 }
 
+exports.handler = async (event) => {
+    const method = event.httpMethod;
+    const path   = event.path
+        .replace("/.netlify/functions/api", "")
+        .replace("/api", "")
+        .replace(/\/$/, "") || "/";
 
-// BALANCE
+    const headers = {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    };
 
-router.get("/balance", (req, res) => {
-    getDB().query("SELECT balance FROM main_account WHERE id = 1", (err, data) => {
-        if (err) return res.status(500).send(err.message);
-        if (!data.length) return res.status(404).send("Account not found");
-        res.json({ balance: parseFloat(data[0].balance) });
-    });
-});
+    if (method === "OPTIONS") return { statusCode: 200, headers, body: "" };
 
+    let conn;
+    try {
+        conn = await getDB();
+    } catch (err) {
+        return { statusCode: 500, headers, body: JSON.stringify({ error: "DB connection failed: " + err.message }) };
+    }
 
-// POCKETS
+    try {
 
-router.get("/pockets", (req, res) => {
-    getDB().query("SELECT * FROM pockets ORDER BY id ASC", (err, data) => {
-        if (err) return res.status(500).send(err.message);
-        res.json(data);
-    });
-});
-
-router.get("/pockets/:id", (req, res) => {
-    getDB().query("SELECT * FROM pockets WHERE id = ?", [req.params.id], (err, data) => {
-        if (err) return res.status(500).send(err.message);
-        if (!data.length) return res.status(404).send("Pocket not found");
-        res.json(data[0]);
-    });
-});
-
-router.post("/pockets", (req, res) => {
-    const { name, amount, start, duration, type } = req.body;
-    if (!name || !amount || !start || !duration || !type)
-        return res.status(400).send("Missing required fields");
-
-    getDB().query(
-        "INSERT INTO pockets (name, amount, start, duration, type) VALUES (?, ?, ?, ?, ?)",
-        [name, parseFloat(amount), start, parseInt(duration), type],
-        (err, result) => {
-            if (err) return res.status(500).send("Error creating pocket");
-            res.json({ success: true, id: result.insertId });
+        // GET /balance
+        if (method === "GET" && path === "/balance") {
+            const [rows] = await conn.query("SELECT balance FROM main_account WHERE id = 1");
+            if (!rows.length) return { statusCode: 404, headers, body: "Account not found" };
+            return { statusCode: 200, headers, body: JSON.stringify({ balance: parseFloat(rows[0].balance) }) };
         }
-    );
-});
 
-router.put("/pockets/:id", (req, res) => {
-    const { name, amount, start, duration, type } = req.body;
-    if (!name || !amount || !start || !duration || !type)
-        return res.status(400).send("Missing required fields");
-
-    getDB().query(
-        "UPDATE pockets SET name=?, amount=?, start=?, duration=?, type=? WHERE id=?",
-        [name, parseFloat(amount), start, parseInt(duration), type, req.params.id],
-        (err) => {
-            if (err) return res.status(500).send("Update failed");
-            res.json({ success: true });
+        // GET /pockets
+        if (method === "GET" && path === "/pockets") {
+            const [rows] = await conn.query("SELECT * FROM pockets ORDER BY id ASC");
+            return { statusCode: 200, headers, body: JSON.stringify(rows) };
         }
-    );
-});
 
-router.delete("/pockets/:id", (req, res) => {
-    getDB().query("DELETE FROM pockets WHERE id = ?", [req.params.id], (err) => {
-        if (err) return res.status(500).send(err.message);
-        res.json({ success: true });
-    });
-});
+        // GET /pockets/:id
+        if (method === "GET" && path.match(/^\/pockets\/\d+$/)) {
+            const id = path.split("/")[2];
+            const [rows] = await conn.query("SELECT * FROM pockets WHERE id = ?", [id]);
+            if (!rows.length) return { statusCode: 404, headers, body: "Pocket not found" };
+            return { statusCode: 200, headers, body: JSON.stringify(rows[0]) };
+        }
 
-
-// TRANSFER
-
-router.post("/transfer", (req, res) => {
-    const { amount, category, receiverAccount, source } = req.body;
-
-    if (!amount || !category || !receiverAccount || !source)
-        return res.status(400).send("Missing required fields");
-
-    const amountNum = parseFloat(amount);
-    if (amountNum <= 0) return res.status(400).send("Invalid amount");
-
-    const deductSQL = source === "main"
-        ? "UPDATE main_account SET balance = balance - ? WHERE id = 1"
-        : "UPDATE pockets SET amount = amount - ? WHERE id = ?";
-
-    const deductValues = source === "main"
-        ? [amountNum]
-        : [amountNum, parseInt(source)];
-
-    const conn = getDB();
-
-    conn.beginTransaction(err => {
-        if (err) return res.status(500).send("Transaction start failed");
-
-        conn.query(deductSQL, deductValues, err => {
-            if (err) return conn.rollback(() => res.status(500).send("Deduct failed"));
-
-            conn.query(
-                "INSERT INTO transactions (amount, category, receiver_account, source, date) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
-                [amountNum, category, receiverAccount, source],
-                err2 => {
-                    if (err2) return conn.rollback(() => res.status(500).send("Insert failed"));
-
-                    conn.commit(err3 => {
-                        if (err3) return conn.rollback(() => res.status(500).send("Commit failed"));
-                        res.json({ success: true });
-                    });
-                }
+        // POST /pockets
+        if (method === "POST" && path === "/pockets") {
+            const { name, amount, start, duration, type } = JSON.parse(event.body);
+            if (!name || !amount || !start || !duration || !type)
+                return { statusCode: 400, headers, body: "Missing required fields" };
+            const [result] = await conn.query(
+                "INSERT INTO pockets (name, amount, start, duration, type) VALUES (?, ?, ?, ?, ?)",
+                [name, parseFloat(amount), start, parseInt(duration), type]
             );
-        });
-    });
-});
-
-
-// TRANSACTIONS
-
-router.get("/transactions/all", (req, res) => {
-    getDB().query("SELECT * FROM transactions ORDER BY id DESC", (err, data) => {
-        if (err) return res.status(500).send(err.message);
-        res.json(data);
-    });
-});
-
-router.get("/transactions/today", (req, res) => {
-    getDB().query(
-        "SELECT * FROM transactions WHERE DATE(date) = CURDATE() ORDER BY id DESC",
-        (err, data) => {
-            if (err) return res.status(500).send(err.message);
-            res.json(data);
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true, id: result.insertId }) };
         }
-    );
-});
 
-router.get("/transactions/date/:date", (req, res) => {
-    const { date } = req.params;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
-        return res.status(400).send("Invalid date format. Use YYYY-MM-DD");
-
-    getDB().query(
-        "SELECT * FROM transactions WHERE DATE(date) = ? ORDER BY id DESC",
-        [date],
-        (err, data) => {
-            if (err) return res.status(500).send(err.message);
-            res.json(data);
+        // PUT /pockets/:id
+        if (method === "PUT" && path.match(/^\/pockets\/\d+$/)) {
+            const id = path.split("/")[2];
+            const { name, amount, start, duration, type } = JSON.parse(event.body);
+            if (!name || !amount || !start || !duration || !type)
+                return { statusCode: 400, headers, body: "Missing required fields" };
+            await conn.query(
+                "UPDATE pockets SET name=?, amount=?, start=?, duration=?, type=? WHERE id=?",
+                [name, parseFloat(amount), start, parseInt(duration), type, id]
+            );
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
         }
-    );
-});
 
-router.get("/dashboard", (req, res) => {
-    const months = parseInt(req.query.months) || 3;
+        // DELETE /pockets/:id
+        if (method === "DELETE" && path.match(/^\/pockets\/\d+$/)) {
+            const id = path.split("/")[2];
+            await conn.query("DELETE FROM pockets WHERE id = ?", [id]);
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+        }
 
-    getDB().query(
-        "SELECT * FROM transactions WHERE date >= DATE_SUB(NOW(), INTERVAL ? MONTH) ORDER BY date ASC",
-        [months],
-        (err, data) => {
-            if (err) return res.status(500).send(err.message);
+        // POST /transfer
+        if (method === "POST" && path === "/transfer") {
+            const { amount, category, receiverAccount, source } = JSON.parse(event.body);
+            if (!amount || !category || !receiverAccount || !source)
+                return { statusCode: 400, headers, body: "Missing required fields" };
 
+            const amountNum = parseFloat(amount);
+            if (amountNum <= 0) return { statusCode: 400, headers, body: "Invalid amount" };
+
+            if (source === "main") {
+                await conn.query("UPDATE main_account SET balance = balance - ? WHERE id = 1", [amountNum]);
+            } else {
+                await conn.query("UPDATE pockets SET amount = amount - ? WHERE id = ?", [amountNum, parseInt(source)]);
+            }
+
+            await conn.query(
+                "INSERT INTO transactions (amount, category, receiver_account, source, date) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                [amountNum, category, receiverAccount, source]
+            );
+
+            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+        }
+
+        // GET /transactions/all
+        if (method === "GET" && path === "/transactions/all") {
+            const [rows] = await conn.query("SELECT * FROM transactions ORDER BY id DESC");
+            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+        }
+
+        // GET /transactions/today
+        if (method === "GET" && path === "/transactions/today") {
+            const [rows] = await conn.query(
+                "SELECT * FROM transactions WHERE DATE(date) = CURDATE() ORDER BY id DESC"
+            );
+            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+        }
+
+        // GET /transactions/date/:date
+        if (method === "GET" && path.match(/^\/transactions\/date\/\d{4}-\d{2}-\d{2}$/)) {
+            const date = path.split("/")[3];
+            const [rows] = await conn.query(
+                "SELECT * FROM transactions WHERE DATE(date) = ? ORDER BY id DESC", [date]
+            );
+            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+        }
+
+        // GET /dashboard
+        if (method === "GET" && path === "/dashboard") {
+            const months = parseInt(event.queryStringParameters?.months) || 3;
+            const [rows] = await conn.query(
+                "SELECT * FROM transactions WHERE date >= DATE_SUB(NOW(), INTERVAL ? MONTH) ORDER BY date ASC",
+                [months]
+            );
             const grouped = {};
-            data.forEach(t => {
+            rows.forEach(t => {
                 const d = new Date(t.date);
                 if (isNaN(d)) return;
                 const month = d.toISOString().slice(0, 7);
                 if (!grouped[month]) grouped[month] = {};
-                grouped[month][t.category] =
-                    (grouped[month][t.category] || 0) + Number(t.amount);
+                grouped[month][t.category] = (grouped[month][t.category] || 0) + Number(t.amount);
             });
-
-            res.json(grouped);
+            return { statusCode: 200, headers, body: JSON.stringify(grouped) };
         }
-    );
-});
 
+        return { statusCode: 404, headers, body: JSON.stringify({ error: "Route not found: " + method + " " + path }) };
 
-// Mount router at /api
-app.use("/api", router);
-
-// EXPORT
-module.exports.handler = serverless(app);
+    } catch (err) {
+        console.error("Handler error:", err);
+        return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    }
+};
