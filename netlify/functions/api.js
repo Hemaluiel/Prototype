@@ -4,6 +4,7 @@ const cors = require("cors");
 const serverless = require("serverless-http");
 
 const app = express();
+const router = express.Router();
 
 app.use(cors({ origin: "*" }));
 app.use(express.json());
@@ -21,7 +22,7 @@ function getDB() {
         password: process.env.MYSQLPASSWORD,
         database: process.env.MYSQLDATABASE,
         port: parseInt(process.env.MYSQLPORT),
-        ssl: { rejectUnauthorized: false }   
+        ssl: { rejectUnauthorized: false }
     });
 
     db.connect(err => {
@@ -30,7 +31,6 @@ function getDB() {
             db = null;
         } else {
             console.log("Connected to MySQL");
-
             db.query(`
                 CREATE TABLE IF NOT EXISTS pockets (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -52,7 +52,7 @@ function getDB() {
 
 // BALANCE
 
-app.get("/balance", (req, res) => {
+router.get("/balance", (req, res) => {
     getDB().query("SELECT balance FROM main_account WHERE id = 1", (err, data) => {
         if (err) return res.status(500).send(err.message);
         if (!data.length) return res.status(404).send("Account not found");
@@ -63,14 +63,14 @@ app.get("/balance", (req, res) => {
 
 // POCKETS
 
-app.get("/pockets", (req, res) => {
+router.get("/pockets", (req, res) => {
     getDB().query("SELECT * FROM pockets ORDER BY id ASC", (err, data) => {
         if (err) return res.status(500).send(err.message);
         res.json(data);
     });
 });
 
-app.get("/pockets/:id", (req, res) => {
+router.get("/pockets/:id", (req, res) => {
     getDB().query("SELECT * FROM pockets WHERE id = ?", [req.params.id], (err, data) => {
         if (err) return res.status(500).send(err.message);
         if (!data.length) return res.status(404).send("Pocket not found");
@@ -78,7 +78,7 @@ app.get("/pockets/:id", (req, res) => {
     });
 });
 
-app.post("/pockets", (req, res) => {
+router.post("/pockets", (req, res) => {
     const { name, amount, start, duration, type } = req.body;
     if (!name || !amount || !start || !duration || !type)
         return res.status(400).send("Missing required fields");
@@ -93,7 +93,7 @@ app.post("/pockets", (req, res) => {
     );
 });
 
-app.put("/pockets/:id", (req, res) => {
+router.put("/pockets/:id", (req, res) => {
     const { name, amount, start, duration, type } = req.body;
     if (!name || !amount || !start || !duration || !type)
         return res.status(400).send("Missing required fields");
@@ -108,7 +108,7 @@ app.put("/pockets/:id", (req, res) => {
     );
 });
 
-app.delete("/pockets/:id", (req, res) => {
+router.delete("/pockets/:id", (req, res) => {
     getDB().query("DELETE FROM pockets WHERE id = ?", [req.params.id], (err) => {
         if (err) return res.status(500).send(err.message);
         res.json({ success: true });
@@ -116,9 +116,9 @@ app.delete("/pockets/:id", (req, res) => {
 });
 
 
-// TRANSFER 
+// TRANSFER
 
-app.post("/transfer", (req, res) => {
+router.post("/transfer", (req, res) => {
     const { amount, category, receiverAccount, source } = req.body;
 
     if (!amount || !category || !receiverAccount || !source)
@@ -160,16 +160,16 @@ app.post("/transfer", (req, res) => {
 });
 
 
-// TRANSACTIONS 
+// TRANSACTIONS
 
-app.get("/transactions/all", (req, res) => {
+router.get("/transactions/all", (req, res) => {
     getDB().query("SELECT * FROM transactions ORDER BY id DESC", (err, data) => {
         if (err) return res.status(500).send(err.message);
         res.json(data);
     });
 });
 
-app.get("/transactions/today", (req, res) => {
+router.get("/transactions/today", (req, res) => {
     getDB().query(
         "SELECT * FROM transactions WHERE DATE(date) = CURDATE() ORDER BY id DESC",
         (err, data) => {
@@ -179,7 +179,7 @@ app.get("/transactions/today", (req, res) => {
     );
 });
 
-app.get("/transactions/date/:date", (req, res) => {
+router.get("/transactions/date/:date", (req, res) => {
     const { date } = req.params;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
         return res.status(400).send("Invalid date format. Use YYYY-MM-DD");
@@ -194,7 +194,7 @@ app.get("/transactions/date/:date", (req, res) => {
     );
 });
 
-app.get("/dashboard", (req, res) => {
+router.get("/dashboard", (req, res) => {
     const months = parseInt(req.query.months) || 3;
 
     getDB().query(
@@ -219,6 +219,8 @@ app.get("/dashboard", (req, res) => {
 });
 
 
-// EXPORT
+// Mount router at /api
+app.use("/api", router);
 
+// EXPORT
 module.exports.handler = serverless(app);
