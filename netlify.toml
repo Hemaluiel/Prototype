@@ -12,6 +12,42 @@
   force = true
 
 [[redirects]]
+  from = "/balance"
+  to = "/.netlify/functions/api/balance"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/pockets"
+  to = "/.netlify/functions/api/pockets"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/pockets/*"
+  to = "/.netlify/functions/api/pockets/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/transfer"
+  to = "/.netlify/functions/api/transfer"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/transactions/*"
+  to = "/.netlify/functions/api/transactions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/.netlify/functions/api/dashboard"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
