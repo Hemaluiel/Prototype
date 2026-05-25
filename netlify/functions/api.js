@@ -3,8 +3,7 @@ const mysql = require("mysql2/promise");
 let db;
 
 async function getDB() {
-    if (db) return db;
-    db = await mysql.createConnection({
+    const db = await mysql.createConnection({
         host: process.env.MYSQLHOST,
         user: process.env.MYSQLUSER,
         password: process.env.MYSQLPASSWORD,
