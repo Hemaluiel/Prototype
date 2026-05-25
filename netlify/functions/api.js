@@ -1,7 +1,5 @@
 const mysql = require("mysql2/promise");
 
-let db;
-
 async function getDB() {
     const db = await mysql.createConnection({
         host: process.env.MYSQLHOST,
@@ -37,39 +35,44 @@ exports.handler = async (event) => {
         return { statusCode: 500, headers, body: JSON.stringify({ error: "DB connection failed: " + err.message }) };
     }
 
+    const reply = (statusCode, body) => {
+        conn.end().catch(() => {});
+        return { statusCode, headers, body: typeof body === "string" ? body : JSON.stringify(body) };
+    };
+
     try {
 
         // GET /balance
         if (method === "GET" && path === "/balance") {
             const [rows] = await conn.query("SELECT balance FROM main_account WHERE id = 1");
-            if (!rows.length) return { statusCode: 404, headers, body: "Account not found" };
-            return { statusCode: 200, headers, body: JSON.stringify({ balance: parseFloat(rows[0].balance) }) };
+            if (!rows.length) return reply(404, "Account not found");
+            return reply(200, { balance: parseFloat(rows[0].balance) });
         }
 
         // GET /pockets
         if (method === "GET" && path === "/pockets") {
             const [rows] = await conn.query("SELECT * FROM pockets ORDER BY id ASC");
-            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+            return reply(200, rows);
         }
 
         // GET /pockets/:id
         if (method === "GET" && path.match(/^\/pockets\/\d+$/)) {
             const id = path.split("/")[2];
             const [rows] = await conn.query("SELECT * FROM pockets WHERE id = ?", [id]);
-            if (!rows.length) return { statusCode: 404, headers, body: "Pocket not found" };
-            return { statusCode: 200, headers, body: JSON.stringify(rows[0]) };
+            if (!rows.length) return reply(404, "Pocket not found");
+            return reply(200, rows[0]);
         }
 
         // POST /pockets
         if (method === "POST" && path === "/pockets") {
             const { name, amount, start, duration, type } = JSON.parse(event.body);
             if (!name || !amount || !start || !duration || !type)
-                return { statusCode: 400, headers, body: "Missing required fields" };
+                return reply(400, "Missing required fields");
             const [result] = await conn.query(
                 "INSERT INTO pockets (name, amount, start, duration, type) VALUES (?, ?, ?, ?, ?)",
                 [name, parseFloat(amount), start, parseInt(duration), type]
             );
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true, id: result.insertId }) };
+            return reply(200, { success: true, id: result.insertId });
         }
 
         // PUT /pockets/:id
@@ -77,29 +80,29 @@ exports.handler = async (event) => {
             const id = path.split("/")[2];
             const { name, amount, start, duration, type } = JSON.parse(event.body);
             if (!name || !amount || !start || !duration || !type)
-                return { statusCode: 400, headers, body: "Missing required fields" };
+                return reply(400, "Missing required fields");
             await conn.query(
                 "UPDATE pockets SET name=?, amount=?, start=?, duration=?, type=? WHERE id=?",
                 [name, parseFloat(amount), start, parseInt(duration), type, id]
             );
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+            return reply(200, { success: true });
         }
 
         // DELETE /pockets/:id
         if (method === "DELETE" && path.match(/^\/pockets\/\d+$/)) {
             const id = path.split("/")[2];
             await conn.query("DELETE FROM pockets WHERE id = ?", [id]);
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+            return reply(200, { success: true });
         }
 
         // POST /transfer
         if (method === "POST" && path === "/transfer") {
             const { amount, category, receiverAccount, source } = JSON.parse(event.body);
             if (!amount || !category || !receiverAccount || !source)
-                return { statusCode: 400, headers, body: "Missing required fields" };
+                return reply(400, "Missing required fields");
 
             const amountNum = parseFloat(amount);
-            if (amountNum <= 0) return { statusCode: 400, headers, body: "Invalid amount" };
+            if (amountNum <= 0) return reply(400, "Invalid amount");
 
             if (source === "main") {
                 await conn.query("UPDATE main_account SET balance = balance - ? WHERE id = 1", [amountNum]);
@@ -112,13 +115,13 @@ exports.handler = async (event) => {
                 [amountNum, category, receiverAccount, source]
             );
 
-            return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+            return reply(200, { success: true });
         }
 
         // GET /transactions/all
         if (method === "GET" && path === "/transactions/all") {
             const [rows] = await conn.query("SELECT * FROM transactions ORDER BY id DESC");
-            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+            return reply(200, rows);
         }
 
         // GET /transactions/today
@@ -126,7 +129,7 @@ exports.handler = async (event) => {
             const [rows] = await conn.query(
                 "SELECT * FROM transactions WHERE DATE(date) = CURDATE() ORDER BY id DESC"
             );
-            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+            return reply(200, rows);
         }
 
         // GET /transactions/date/:date
@@ -135,7 +138,7 @@ exports.handler = async (event) => {
             const [rows] = await conn.query(
                 "SELECT * FROM transactions WHERE DATE(date) = ? ORDER BY id DESC", [date]
             );
-            return { statusCode: 200, headers, body: JSON.stringify(rows) };
+            return reply(200, rows);
         }
 
         // GET /dashboard
@@ -153,13 +156,14 @@ exports.handler = async (event) => {
                 if (!grouped[month]) grouped[month] = {};
                 grouped[month][t.category] = (grouped[month][t.category] || 0) + Number(t.amount);
             });
-            return { statusCode: 200, headers, body: JSON.stringify(grouped) };
+            return reply(200, grouped);
         }
 
-        return { statusCode: 404, headers, body: JSON.stringify({ error: "Route not found: " + method + " " + path }) };
+        return reply(404, { error: "Route not found: " + method + " " + path });
 
     } catch (err) {
         console.error("Handler error:", err);
+        conn.end().catch(() => {});
         return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
     }
 };
