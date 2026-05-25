@@ -72,6 +72,11 @@ exports.handler = async (event) => {
                 "INSERT INTO pockets (name, amount, start, duration, type) VALUES (?, ?, ?, ?, ?)",
                 [name, parseFloat(amount), start, parseInt(duration), type]
             );
+            // Deduct from main account when pocket is created
+            await conn.query(
+                "UPDATE main_account SET balance = balance - ? WHERE id = 1",
+                [parseFloat(amount)]
+            );
             return reply(200, { success: true, id: result.insertId });
         }
 
