@@ -27,7 +27,7 @@ function getDB() {
     db.connect(err => {
         if (err) {
             console.error("DB connect error:", err);
-            db = null;   // allow retry on next request
+            db = null;
         } else {
             console.log("Connected to MySQL");
 
@@ -52,7 +52,7 @@ function getDB() {
 
 // BALANCE
 
-app.get("/api/balance", (req, res) => {
+app.get("/balance", (req, res) => {
     getDB().query("SELECT balance FROM main_account WHERE id = 1", (err, data) => {
         if (err) return res.status(500).send(err.message);
         if (!data.length) return res.status(404).send("Account not found");
@@ -63,14 +63,14 @@ app.get("/api/balance", (req, res) => {
 
 // POCKETS
 
-app.get("/api/pockets", (req, res) => {
+app.get("/pockets", (req, res) => {
     getDB().query("SELECT * FROM pockets ORDER BY id ASC", (err, data) => {
         if (err) return res.status(500).send(err.message);
         res.json(data);
     });
 });
 
-app.get("/api/pockets/:id", (req, res) => {
+app.get("/pockets/:id", (req, res) => {
     getDB().query("SELECT * FROM pockets WHERE id = ?", [req.params.id], (err, data) => {
         if (err) return res.status(500).send(err.message);
         if (!data.length) return res.status(404).send("Pocket not found");
@@ -78,7 +78,7 @@ app.get("/api/pockets/:id", (req, res) => {
     });
 });
 
-app.post("/api/pockets", (req, res) => {
+app.post("/pockets", (req, res) => {
     const { name, amount, start, duration, type } = req.body;
     if (!name || !amount || !start || !duration || !type)
         return res.status(400).send("Missing required fields");
@@ -93,7 +93,7 @@ app.post("/api/pockets", (req, res) => {
     );
 });
 
-app.put("/api/pockets/:id", (req, res) => {
+app.put("/pockets/:id", (req, res) => {
     const { name, amount, start, duration, type } = req.body;
     if (!name || !amount || !start || !duration || !type)
         return res.status(400).send("Missing required fields");
@@ -108,7 +108,7 @@ app.put("/api/pockets/:id", (req, res) => {
     );
 });
 
-app.delete("/api/pockets/:id", (req, res) => {
+app.delete("/pockets/:id", (req, res) => {
     getDB().query("DELETE FROM pockets WHERE id = ?", [req.params.id], (err) => {
         if (err) return res.status(500).send(err.message);
         res.json({ success: true });
@@ -118,7 +118,7 @@ app.delete("/api/pockets/:id", (req, res) => {
 
 // TRANSFER 
 
-app.post("/api/transfer", (req, res) => {
+app.post("/transfer", (req, res) => {
     const { amount, category, receiverAccount, source } = req.body;
 
     if (!amount || !category || !receiverAccount || !source)
@@ -162,14 +162,14 @@ app.post("/api/transfer", (req, res) => {
 
 // TRANSACTIONS 
 
-app.get("/api/transactions/all", (req, res) => {
+app.get("/transactions/all", (req, res) => {
     getDB().query("SELECT * FROM transactions ORDER BY id DESC", (err, data) => {
         if (err) return res.status(500).send(err.message);
         res.json(data);
     });
 });
 
-app.get("/api/transactions/today", (req, res) => {
+app.get("/transactions/today", (req, res) => {
     getDB().query(
         "SELECT * FROM transactions WHERE DATE(date) = CURDATE() ORDER BY id DESC",
         (err, data) => {
@@ -179,7 +179,7 @@ app.get("/api/transactions/today", (req, res) => {
     );
 });
 
-app.get("/api/transactions/date/:date", (req, res) => {
+app.get("/transactions/date/:date", (req, res) => {
     const { date } = req.params;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
         return res.status(400).send("Invalid date format. Use YYYY-MM-DD");
@@ -194,7 +194,7 @@ app.get("/api/transactions/date/:date", (req, res) => {
     );
 });
 
-app.get("/api/dashboard", (req, res) => {
+app.get("/dashboard", (req, res) => {
     const months = parseInt(req.query.months) || 3;
 
     getDB().query(
