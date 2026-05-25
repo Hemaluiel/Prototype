@@ -21,7 +21,8 @@ async function loadMainBalance() {
 
 function updateBalanceDisplay() {
     const el = document.getElementById("mainBalanceDisplay");
-    if (el) el.innerText = `Available Balance: Nu. ${mainBalance.toLocaleString()}`;
+    const totalPockets = pockets.reduce((sum, p) => sum + p.amount, 0);
+    if (el) el.innerText = `Available Balance: Nu. ${(mainBalance + totalPockets).toLocaleString()}`;
 }
 
 
@@ -70,6 +71,8 @@ async function createPocket() {
         pockets.push({ id: data.id, name, amount, start, duration, type });
 
         alert("Pocket created!");
+        await loadMainBalance();
+        await loadPocketsFromDB();
         updatePockets();
         goTo(0);
 
