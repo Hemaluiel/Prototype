@@ -277,23 +277,23 @@ function makeTransfer() {
 // AUTO-CATEGORY
 
 const categories = [
-    { label: "Groceries",                   emoji: "🛒" },
-    { label: "Dining & Food",               emoji: "🍜" },
-    { label: "Transport",                   emoji: "🚌" },
-    { label: "Shopping",                    emoji: "🛍️" },
-    { label: "Bills & Utilities",           emoji: "💡" },
-    { label: "Rent",                        emoji: "🏠" },
-    { label: "Health & Medical",            emoji: "🏥" },
-    { label: "Education",                   emoji: "📚" },
-    { label: "Entertainment",               emoji: "🎮" },
-    { label: "Subscriptions",               emoji: "📺" },
-    { label: "Mobile & Data",               emoji: "📱" },
-    { label: "Travel",                      emoji: "✈️" },
-    { label: "Personal Care",               emoji: "🪥" },
-    { label: "Family and Friends",          emoji: "👨‍👩‍👧" },
-    { label: "Contributions and Donations", emoji: "🤲" },
-    { label: "Gifts and Celebrations",      emoji: "🎉" },
-    { label: "Others",                      emoji: "📦" }
+    { label: "Groceries" },
+    { label: "Dining & Food" },
+    { label: "Transport" },
+    { label: "Shopping" },
+    { label: "Bills & Utilities" },
+    { label: "Rent" },
+    { label: "Health & Medical" },
+    { label: "Education" },
+    { label: "Entertainment" },
+    { label: "Subscriptions" },
+    { label: "Mobile & Data" },
+    { label: "Travel" },
+    { label: "Personal Care" },
+    { label: "Family and Friends" },
+    { label: "Contributions and Donations" },
+    { label: "Gifts and Celebrations" },
+    { label: "Others" }
 ];
 
 let selectedCategory = null;
@@ -330,7 +330,6 @@ function renderCategories() {
         div.className = "cat-option";
         div.dataset.label = cat.label;
         div.innerHTML = `
-            <span class="cat-opt-emoji">${cat.emoji}</span>
             <span class="cat-opt-label">${cat.label}</span>
         `;
         div.addEventListener("click", () => {
@@ -344,12 +343,10 @@ function renderCategories() {
 function pickCategory(label, auto = false) {
     selectedCategory = label;
 
-    const cat   = categories.find(c => c.label === label);
-    const emoji = cat ? cat.emoji : "📦";
     const badge = auto ? `<span class="cat-auto-badge">✨ Auto-detected</span>` : "";
 
     document.getElementById("catSelectedText").innerHTML =
-        `<span>${emoji}&nbsp;&nbsp;${label}</span>${badge}`;
+        `<span>${label}</span>${badge}`;
 
     document.querySelectorAll(".cat-option").forEach(el => {
         el.classList.remove("active");
@@ -555,30 +552,20 @@ function renderTransactionList(data, container) {
     container.innerHTML = data.map(t => {
         const dateStr = t.date ? new Date(t.date).toLocaleDateString("en-IN",
             { day:"2-digit", month:"short", year:"numeric" }) : "—";
-        const emoji = getCategoryEmoji(t.category);
         return `
             <div class="transaction">
-                <span>${emoji} <b>${t.category || "Others"}</b></span>
-                <span style="float:right; color:#003f88; font-weight:bold;">
+                <span style="font-size:12px;"><b>${t.category || "Others"}</b></span>
+                <span style="float:right; color:#003f88; font-weight:bold; font-size:12px;">
                     Nu. ${parseFloat(t.amount).toLocaleString()}
                 </span>
                 <br>
-                <small style="color:#888;">Acc: ${t.receiver_account} · ${dateStr}</small>
+                <small style="color:#888; font-size:11px;">Acc: ${t.receiver_account} · ${dateStr}</small>
             </div>
         `;
     }).join("");
 }
 
-function getCategoryEmoji(cat) {
-    const map = {
-        "Groceries":"🛒","Dining & Food":"🍜","Transport":"🚌","Shopping":"🛍️",
-        "Bills & Utilities":"💡","Rent":"🏠","Health & Medical":"🏥","Education":"📚",
-        "Entertainment":"🎮","Subscriptions":"📺","Mobile & Data":"📱","Travel":"✈️",
-        "Personal Care":"🪥","Family and Friends":"👨‍👩‍👧",
-        "Contributions and Donations":"🤲","Gifts and Celebrations":"🎉","Others":"📦"
-    };
-    return map[cat] || "📦";
-}
+
 
 
 // NAVIGATION 
